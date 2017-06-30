@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/hyperledger/fabric/consensus/util/events"
+	"github.com/bft/util/events"
 )
 
 // viewChangeQuorumEvent is returned to the event loop when a new ViewChange message is received which is part of a quorum cert

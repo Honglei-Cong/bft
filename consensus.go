@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,10 +13,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package consensus
+package bft
 
 import (
-	pb "github.com/hyperledger/fabric/protos"
+	pb "github.com/bft/protos"
 )
 
 // ExecutionConsumer allows callbacks from asycnhronous execution and statetransfer
@@ -60,13 +59,13 @@ type SecurityUtils interface {
 }
 
 // ReadOnlyLedger is used for interrogating the blockchain
-type ReadOnlyLedger interface {
-	GetBlock(id uint64) (block *pb.Block, err error)
-	GetBlockchainSize() uint64
-	GetBlockchainInfo() *pb.BlockchainInfo
-	GetBlockchainInfoBlob() []byte
-	GetBlockHeadMetadata() ([]byte, error)
-}
+//type ReadOnlyLedger interface {
+//	GetBlock(id uint64) (block *pb.Block, err error)
+//	GetBlockchainSize() uint64
+//	GetBlockchainInfo() *pb.BlockchainInfo
+//	GetBlockchainInfoBlob() []byte
+//	GetBlockHeadMetadata() ([]byte, error)
+//}
 
 // LegacyExecutor is used to invoke transactions, potentially modifying the backing ledger
 type LegacyExecutor interface {
@@ -110,6 +109,6 @@ type Stack interface {
 	Executor
 	LegacyExecutor
 	LedgerManager
-	ReadOnlyLedger
+	//ReadOnlyLedger
 	StatePersistor
 }

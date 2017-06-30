@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +16,7 @@ limitations under the License.
 package persist
 
 import (
-	"github.com/hyperledger/fabric/core/db"
+	"github.com/bft/core/db"
 )
 
 // Helper provides an abstraction to access the Persist column family

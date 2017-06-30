@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,16 +18,17 @@ package helper
 import (
 	"fmt"
 
+	pb "github.com/bft/protos"
+	"github.com/bft/util"
 	"github.com/op/go-logging"
-	"github.com/spf13/viper"
-
-	"github.com/hyperledger/fabric/consensus/util"
-	"github.com/hyperledger/fabric/core/peer"
-
-	pb "github.com/hyperledger/fabric/protos"
+	"github.com/bft"
 )
 
 var logger *logging.Logger // package-level logger
+
+const (
+	ConsensusBufferSize = 16
+)
 
 func init() {
 	logger = logging.MustGetLogger("consensus/handler")
@@ -42,17 +42,17 @@ const (
 // ConsensusHandler handles consensus messages.
 // It also implements the Stack.
 type ConsensusHandler struct {
-	peer.MessageHandler
+	bft.MessageHandler
 	consenterChan chan *util.Message
-	coordinator   peer.MessageHandlerCoordinator
+	coordinator   bft.MessageHandlerCoordinator
 }
 
 // NewConsensusHandler constructs a new MessageHandler for the plugin.
 // Is instance of peer.HandlerFactory
-func NewConsensusHandler(coord peer.MessageHandlerCoordinator,
-	stream peer.ChatStream, initiatedStream bool) (peer.MessageHandler, error) {
+func NewConsensusHandler(coord bft.MessageHandlerCoordinator,
+	stream bft.ChatStream, initiatedStream bool) (bft.MessageHandler, error) {
 
-	peerHandler, err := peer.NewPeerHandler(coord, stream, initiatedStream)
+	peerHandler, err := bft.NewPeerHandler(coord, stream, initiatedStream)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating PeerHandler: %s", err)
 	}
@@ -62,7 +62,7 @@ func NewConsensusHandler(coord peer.MessageHandlerCoordinator,
 		coordinator:    coord,
 	}
 
-	consensusQueueSize := viper.GetInt("peer.validator.consensus.buffersize")
+	consensusQueueSize := ConsensusBufferSize
 
 	if consensusQueueSize <= 0 {
 		logger.Errorf("peer.validator.consensus.buffersize is set to %d, but this must be a positive integer, defaulting to %d", consensusQueueSize, DefaultConsensusQueueSize)

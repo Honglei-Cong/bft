@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,13 +20,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hyperledger/fabric/consensus"
-	pb "github.com/hyperledger/fabric/protos"
+	"github.com/bft"
+	pb "github.com/bft/protos"
 )
 
 type communicator interface {
-	consensus.Communicator
-	consensus.Inquirer
+	bft.Communicator
+	bft.Inquirer
 }
 
 type broadcaster struct {

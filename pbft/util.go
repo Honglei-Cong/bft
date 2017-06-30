@@ -21,10 +21,15 @@ package pbft
 
 import (
 	"encoding/base64"
+	"crypto/sha1"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric/core/util"
 )
+
+// ComputeCryptoHash should be used in openchain code so that we can change the actual algo used for crypto-hash at one place
+func ComputeCryptoHash(data []byte) []byte {
+	return []byte(sha1.Sum(data))
+}
 
 func hash(msg interface{}) string {
 	var raw []byte
@@ -37,6 +42,6 @@ func hash(msg interface{}) string {
 		logger.Error("Asked to hash non-supported message type, ignoring")
 		return ""
 	}
-	return base64.StdEncoding.EncodeToString(util.ComputeCryptoHash(raw))
+	return base64.StdEncoding.EncodeToString(ComputeCryptoHash(raw))
 
 }

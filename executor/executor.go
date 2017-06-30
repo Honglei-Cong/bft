@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,10 +16,9 @@ limitations under the License.
 package executor
 
 import (
-	"github.com/hyperledger/fabric/consensus"
-	"github.com/hyperledger/fabric/consensus/util/events"
-	"github.com/hyperledger/fabric/core/peer/statetransfer"
-	pb "github.com/hyperledger/fabric/protos"
+	"github.com/bft"
+	"github.com/bft/util/events"
+	pb "github.com/bft/protos"
 
 	"github.com/op/go-logging"
 )
@@ -33,21 +31,21 @@ func init() {
 
 // PartialStack contains the ledger features required by the executor.Coordinator
 type PartialStack interface {
-	consensus.LegacyExecutor
+	bft.LegacyExecutor
 	GetBlockchainInfo() *pb.BlockchainInfo
 }
 
 type coordinatorImpl struct {
 	manager         events.Manager              // Maintains event thread and sends events to the coordinator
 	rawExecutor     PartialStack                // Does the real interaction with the ledger
-	consumer        consensus.ExecutionConsumer // The consumer of this coordinator which receives the callbacks
-	stc             statetransfer.Coordinator   // State transfer instance
+	consumer        bft.ExecutionConsumer // The consumer of this coordinator which receives the callbacks
+	stc             bft.Coordinator   // State transfer instance
 	batchInProgress bool                        // Are we mid execution batch
 	skipInProgress  bool                        // Are we mid state transfer
 }
 
 // NewCoordinatorImpl creates a new executor.Coordinator
-func NewImpl(consumer consensus.ExecutionConsumer, rawExecutor PartialStack, stps statetransfer.PartialStack) consensus.Executor {
+func NewImpl(consumer bft.ExecutionConsumer, rawExecutor PartialStack, stps statetransfer.PartialStack) bft.Executor {
 	co := &coordinatorImpl{
 		rawExecutor: rawExecutor,
 		consumer:    consumer,

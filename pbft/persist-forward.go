@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,11 +16,11 @@ limitations under the License.
 package pbft
 
 import (
-	"github.com/hyperledger/fabric/consensus"
+	"github.com/bft"
 )
 
 type persistForward struct {
-	persistor consensus.StatePersistor
+	persistor bft.StatePersistor
 }
 
 func (p persistForward) ReadState(key string) ([]byte, error) {

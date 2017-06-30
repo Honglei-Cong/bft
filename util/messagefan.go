@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,9 +18,8 @@ package util
 import (
 	"sync"
 
+	pb "github.com/bft/protos"
 	"github.com/op/go-logging"
-
-	pb "github.com/hyperledger/fabric/protos"
 )
 
 var logger *logging.Logger // package-level logger

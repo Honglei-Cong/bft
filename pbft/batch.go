@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,9 +19,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hyperledger/fabric/consensus"
-	"github.com/hyperledger/fabric/consensus/util/events"
-	pb "github.com/hyperledger/fabric/protos"
+	"github.com/bft"
+	"github.com/bft/util/events"
+	pb "github.com/bft/protos"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -67,7 +66,7 @@ type batchMessageEvent batchMessage
 // batchTimerEvent is sent when the batch timer expires
 type batchTimerEvent struct{}
 
-func newObcBatch(id uint64, config *viper.Viper, stack consensus.Stack) *obcBatch {
+func newObcBatch(id uint64, config *viper.Viper, stack bft.Stack) *obcBatch {
 	var err error
 
 	op := &obcBatch{

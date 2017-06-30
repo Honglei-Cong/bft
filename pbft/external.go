@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +16,8 @@ limitations under the License.
 package pbft
 
 import (
-	"github.com/hyperledger/fabric/consensus/util/events"
-	pb "github.com/hyperledger/fabric/protos"
+	"github.com/bft/util/events"
+	pb "github.com/bft/protos"
 )
 
 // --------------------------------------------------------------

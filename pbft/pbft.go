@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,8 +22,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hyperledger/fabric/consensus"
-	pb "github.com/hyperledger/fabric/protos"
+	"github.com/bft"
+	pb "github.com/bft/protos"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/spf13/viper"
@@ -32,15 +31,15 @@ import (
 
 const configPrefix = "CORE_PBFT"
 
-var pluginInstance consensus.Consenter // singleton service
+var pluginInstance bft.Consenter // singleton service
 var config *viper.Viper
 
 func init() {
 	config = loadConfig()
 }
 
-// GetPlugin returns the handle to the Consenter singleton
-func GetPlugin(c consensus.Stack) consensus.Consenter {
+// GetPbftConsenter returns the handle to the Consenter singleton
+func GetPbftConsenter(c bft.Stack) bft.Consenter {
 	if pluginInstance == nil {
 		pluginInstance = New(c)
 	}
@@ -49,7 +48,7 @@ func GetPlugin(c consensus.Stack) consensus.Consenter {
 
 // New creates a new Obc* instance that provides the Consenter interface.
 // Internally, it uses an opaque pbft-core instance.
-func New(stack consensus.Stack) consensus.Consenter {
+func New(stack bft.Stack) bft.Consenter {
 	handle, _, _ := stack.GetNetworkHandles()
 	id, _ := getValidatorID(handle)
 
@@ -72,12 +71,12 @@ func loadConfig() (config *viper.Viper) {
 
 	config.SetConfigName("config")
 	config.AddConfigPath("./")
-	config.AddConfigPath("../consensus/pbft/")
-	config.AddConfigPath("../../consensus/pbft")
+	config.AddConfigPath("../bft/pbft/")
+	config.AddConfigPath("../../bft/pbft")
 	// Path to look for the config file in based on GOPATH
 	gopath := os.Getenv("GOPATH")
 	for _, p := range filepath.SplitList(gopath) {
-		pbftpath := filepath.Join(p, "src/github.com/hyperledger/fabric/consensus/pbft")
+		pbftpath := filepath.Join(p, "src/github.com/bft/bft/pbft")
 		config.AddConfigPath(pbftpath)
 	}
 
@@ -122,7 +121,7 @@ func getValidatorHandles(ids []uint64) (handles []*pb.PeerID) {
 }
 
 type obcGeneric struct {
-	stack consensus.Stack
+	stack bft.Stack
 	pbft  *pbftCore
 }
 

@@ -1,5 +1,4 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,9 +23,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hyperledger/fabric/consensus"
-	"github.com/hyperledger/fabric/consensus/util/events"
-	_ "github.com/hyperledger/fabric/core" // Needed for logging format init
+	"github.com/bft"
+	"github.com/bft/util/events"
 	"github.com/op/go-logging"
 
 	"github.com/golang/protobuf/proto"
@@ -94,7 +92,7 @@ type innerStack interface {
 	invalidateState()
 	validateState()
 
-	consensus.StatePersistor
+	bft.StatePersistor
 }
 
 // This structure is used for incoming PBFT bound messages
