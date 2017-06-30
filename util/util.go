@@ -17,29 +17,29 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package pbft
+package util
 
 import (
 	"encoding/base64"
 	"crypto/sha1"
-
+	pb "github.com/bft/bftprotos"
 	"github.com/golang/protobuf/proto"
 )
 
-// ComputeCryptoHash should be used in openchain code so that we can change the actual algo used for crypto-hash at one place
+// ComputeCryptoHash should be used in openchain code so that we can change the actual algo used for crypto-Hash at one place
 func ComputeCryptoHash(data []byte) []byte {
 	return []byte(sha1.Sum(data))
 }
 
-func hash(msg interface{}) string {
+func Hash(msg interface{}) string {
 	var raw []byte
 	switch converted := msg.(type) {
-	case *Request:
+	case *pb.Request:
 		raw, _ = proto.Marshal(converted)
-	case *RequestBatch:
+	case *pb.RequestBatch:
 		raw, _ = proto.Marshal(converted)
 	default:
-		logger.Error("Asked to hash non-supported message type, ignoring")
+		logger.Error("Asked to Hash non-supported message type, ignoring")
 		return ""
 	}
 	return base64.StdEncoding.EncodeToString(ComputeCryptoHash(raw))

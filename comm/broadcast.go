@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package pbft
+package comm
 
 import (
 	"fmt"
@@ -24,13 +24,13 @@ import (
 	pb "github.com/bft/protos"
 )
 
-type communicator interface {
+type Communicator interface {
 	bft.Communicator
 	bft.Inquirer
 }
 
-type broadcaster struct {
-	comm communicator
+type Broadcaster struct {
+	comm Communicator
 
 	f                int
 	broadcastTimeout time.Duration
@@ -44,11 +44,11 @@ type sendRequest struct {
 	done chan bool
 }
 
-func newBroadcaster(self uint64, N int, f int, broadcastTimeout time.Duration, c communicator) *broadcaster {
+func NewBroadcaster(self uint64, N int, f int, broadcastTimeout time.Duration, c Communicator) *Broadcaster {
 	queueSize := 10 // XXX increase after testing
 
 	chans := make(map[uint64]chan *sendRequest)
-	b := &broadcaster{
+	b := &Broadcaster{
 		comm:             c,
 		f:                f,
 		broadcastTimeout: broadcastTimeout,
@@ -73,16 +73,16 @@ func newBroadcaster(self uint64, N int, f int, broadcastTimeout time.Duration, c
 	return b
 }
 
-func (b *broadcaster) Close() {
+func (b *Broadcaster) Close() {
 	close(b.closedCh)
 	b.closed.Wait()
 }
 
-func (b *broadcaster) Wait() {
+func (b *Broadcaster) Wait() {
 	b.closed.Wait()
 }
 
-func (b *broadcaster) drainerSend(dest uint64, send *sendRequest, successLastTime bool) bool {
+func (b *Broadcaster) drainerSend(dest uint64, send *sendRequest, successLastTime bool) bool {
 	// Note, successLastTime is purely used to avoid flooding the log with unnecessary warning messages when a network problem is encountered
 	defer func() {
 		b.closed.Done()
@@ -110,7 +110,7 @@ func (b *broadcaster) drainerSend(dest uint64, send *sendRequest, successLastTim
 
 }
 
-func (b *broadcaster) drainer(dest uint64) {
+func (b *Broadcaster) drainer(dest uint64) {
 	successLastTime := false
 	destChan, exsit := b.msgChans[dest] // Avoid doing the map lookup every send
 	if !exsit {
@@ -137,7 +137,7 @@ func (b *broadcaster) drainer(dest uint64) {
 	}
 }
 
-func (b *broadcaster) unicastOne(msg *pb.Message, dest uint64, wait chan bool) {
+func (b *Broadcaster) unicastOne(msg *pb.Message, dest uint64, wait chan bool) {
 	select {
 	case b.msgChans[dest] <- &sendRequest{
 		msg:  msg,
@@ -150,10 +150,10 @@ func (b *broadcaster) unicastOne(msg *pb.Message, dest uint64, wait chan bool) {
 	}
 }
 
-func (b *broadcaster) send(msg *pb.Message, dest *uint64) error {
+func (b *Broadcaster) send(msg *pb.Message, dest *uint64) error {
 	select {
 	case <-b.closedCh:
-		return fmt.Errorf("broadcaster closed")
+		return fmt.Errorf("Broadcaster closed")
 	default:
 	}
 
@@ -207,10 +207,10 @@ outer:
 	return nil
 }
 
-func (b *broadcaster) Unicast(msg *pb.Message, dest uint64) error {
+func (b *Broadcaster) Unicast(msg *pb.Message, dest uint64) error {
 	return b.send(msg, &dest)
 }
 
-func (b *broadcaster) Broadcast(msg *pb.Message) error {
+func (b *Broadcaster) Broadcast(msg *pb.Message) error {
 	return b.send(msg, nil)
 }

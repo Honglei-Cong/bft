@@ -13,24 +13,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package pbft
+package common
 
 import (
 	"time"
+	pb "github.com/bft/bftprotos"
 )
 
-// deduplicator maintains the most recent Request timestamp for each
+// Deduplicator maintains the most recent Request timestamp for each
 // replica.  Two timestamps are maintained per replica.  One timestamp
 // tracks the most recent Request received from a replica, the other
 // timeout tracks the most recent executed Request.
-type deduplicator struct {
+type Deduplicator struct {
 	reqTimestamps  map[uint64]time.Time
 	execTimestamps map[uint64]time.Time
 }
 
-// newDeduplicator creates a new deduplicator.
-func newDeduplicator() *deduplicator {
-	d := &deduplicator{}
+// NewDeduplicator creates a new Deduplicator.
+func NewDeduplicator() *Deduplicator {
+	d := &Deduplicator{}
 	d.reqTimestamps = make(map[uint64]time.Time)
 	d.execTimestamps = make(map[uint64]time.Time)
 	return d
@@ -40,7 +41,7 @@ func newDeduplicator() *deduplicator {
 // replica.  If the request is older than any previously received or
 // executed request, Request() will return false, indicating a stale
 // request.
-func (d *deduplicator) Request(req *Request) bool {
+func (d *Deduplicator) Request(req *pb.Request) bool {
 	reqTime := time.Unix(req.Timestamp.Seconds, int64(req.Timestamp.Nanos))
 	if !reqTime.After(d.reqTimestamps[req.ReplicaId]) ||
 		!reqTime.After(d.execTimestamps[req.ReplicaId]) {
@@ -54,7 +55,7 @@ func (d *deduplicator) Request(req *Request) bool {
 // replica.  If the request is older than any previously executed
 // request from the same replica, Execute() will return false,
 // indicating a stale request.
-func (d *deduplicator) Execute(req *Request) bool {
+func (d *Deduplicator) Execute(req *pb.Request) bool {
 	reqTime := time.Unix(req.Timestamp.Seconds, int64(req.Timestamp.Nanos))
 	if !reqTime.After(d.execTimestamps[req.ReplicaId]) {
 		return false
@@ -65,7 +66,7 @@ func (d *deduplicator) Execute(req *Request) bool {
 
 // IsNew returns true if this Request is newer than any previously
 // executed request of the submitting replica.
-func (d *deduplicator) IsNew(req *Request) bool {
+func (d *Deduplicator) IsNew(req *pb.Request) bool {
 	reqTime := time.Unix(req.Timestamp.Seconds, int64(req.Timestamp.Nanos))
 	return reqTime.After(d.execTimestamps[req.ReplicaId])
 }

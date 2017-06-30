@@ -24,7 +24,7 @@ It has these top-level messages:
 	BatchMessage
 	Metadata
 */
-package pbft
+package bftprotos
 
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"

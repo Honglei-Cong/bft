@@ -29,6 +29,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/spf13/viper"
+	bpb "github.com/bft/bftprotos"
 )
 
 // =============================================================================
@@ -71,7 +72,7 @@ type viewChangedEvent struct{}
 type viewChangeResendTimerEvent struct{}
 
 // returnRequestBatchEvent is sent by pbft when we are forwarded a request
-type returnRequestBatchEvent *RequestBatch
+type returnRequestBatchEvent *bpb.RequestBatch
 
 // nullRequestEvent provides "keep-alive" null requests
 type nullRequestEvent struct{}
@@ -81,7 +82,7 @@ type nullRequestEvent struct{}
 type innerStack interface {
 	broadcast(msgPayload []byte)
 	unicast(msgPayload []byte, receiverID uint64) (err error)
-	execute(seqNo uint64, reqBatch *RequestBatch) // This is invoked on a separate thread
+	execute(seqNo uint64, reqBatch *bpb.RequestBatch) // This is invoked on a separate thread
 	getState() []byte
 	getLastSeqNo() (uint64, error)
 	skipTo(seqNo uint64, snapshotID []byte, peers []uint64)
@@ -98,7 +99,7 @@ type innerStack interface {
 // This structure is used for incoming PBFT bound messages
 type pbftMessage struct {
 	sender uint64
-	msg    *Message
+	msg    *bpb.Message
 }
 
 type checkpointMessage struct {
@@ -136,8 +137,8 @@ type pbftCore struct {
 	seqNo         uint64            // PBFT "n", strictly monotonic increasing sequence number
 	view          uint64            // current view
 	chkpts        map[uint64]string // state checkpoints; map lastExec to global hash
-	pset          map[uint64]*ViewChange_PQ
-	qset          map[qidx]*ViewChange_PQ
+	pset          map[uint64]*bpb.ViewChange_PQ
+	qset          map[qidx]*bpb.ViewChange_PQ
 
 	skipInProgress    bool               // Set when we have detected a fall behind scenario until we pick a new starting point
 	stateTransferring bool               // Set when state transfer is executing
@@ -154,7 +155,7 @@ type pbftCore struct {
 	newViewTimerReason    string                   // what triggered the timer
 	lastNewViewTimeout    time.Duration            // last timeout we used during this view change
 	broadcastTimeout      time.Duration            // progress timeout for broadcast
-	outstandingReqBatches map[string]*RequestBatch // track whether we are waiting for request batches to execute
+	outstandingReqBatches map[string]*bpb.RequestBatch // track whether we are waiting for request batches to execute
 
 	nullRequestTimer   events.Timer  // timeout triggering a null request
 	nullRequestTimeout time.Duration // duration for this timeout
@@ -164,11 +165,11 @@ type pbftCore struct {
 	missingReqBatches map[string]bool // for all the assigned, non-checkpointed request batches we might be missing during view-change
 
 	// implementation of PBFT `in`
-	reqBatchStore   map[string]*RequestBatch // track request batches
+	reqBatchStore   map[string]*bpb.RequestBatch // track request batches
 	certStore       map[msgID]*msgCert       // track quorum certificates for requests
-	checkpointStore map[Checkpoint]bool      // track checkpoints as set
-	viewChangeStore map[vcidx]*ViewChange    // track view-change messages
-	newViewStore    map[uint64]*NewView      // track last new-view we received or sent
+	checkpointStore map[bpb.Checkpoint]bool      // track checkpoints as set
+	viewChangeStore map[vcidx]*bpb.ViewChange    // track view-change messages
+	newViewStore    map[uint64]*bpb.NewView      // track last new-view we received or sent
 }
 
 type qidx struct {
@@ -183,11 +184,11 @@ type msgID struct { // our index through certStore
 
 type msgCert struct {
 	digest      string
-	prePrepare  *PrePrepare
+	prePrepare  *bpb.PrePrepare
 	sentPrepare bool
-	prepare     []*Prepare
+	prepare     []*bpb.Prepare
 	sentCommit  bool
-	commit      []*Commit
+	commit      []*bpb.Commit
 }
 
 type vcidx struct {
@@ -285,13 +286,13 @@ func newPbftCore(id uint64, config *viper.Viper, consumer innerStack, etf events
 
 	// init the logs
 	instance.certStore = make(map[msgID]*msgCert)
-	instance.reqBatchStore = make(map[string]*RequestBatch)
-	instance.checkpointStore = make(map[Checkpoint]bool)
+	instance.reqBatchStore = make(map[string]*bpb.RequestBatch)
+	instance.checkpointStore = make(map[bpb.Checkpoint]bool)
 	instance.chkpts = make(map[uint64]string)
-	instance.viewChangeStore = make(map[vcidx]*ViewChange)
-	instance.pset = make(map[uint64]*ViewChange_PQ)
-	instance.qset = make(map[qidx]*ViewChange_PQ)
-	instance.newViewStore = make(map[uint64]*NewView)
+	instance.viewChangeStore = make(map[vcidx]*bpb.ViewChange)
+	instance.pset = make(map[uint64]*bpb.ViewChange_PQ)
+	instance.qset = make(map[qidx]*bpb.ViewChange_PQ)
+	instance.newViewStore = make(map[uint64]*bpb.NewView)
 
 	// initialize state transfer
 	instance.hChkpts = make(map[uint64]uint64)
@@ -299,7 +300,7 @@ func newPbftCore(id uint64, config *viper.Viper, consumer innerStack, etf events
 	instance.chkpts[0] = "XXX GENESIS"
 
 	instance.lastNewViewTimeout = instance.newViewTimeout
-	instance.outstandingReqBatches = make(map[string]*RequestBatch)
+	instance.outstandingReqBatches = make(map[string]*bpb.RequestBatch)
 	instance.missingReqBatches = make(map[string]bool)
 
 	instance.restoreState()
@@ -335,21 +336,21 @@ func (instance *pbftCore) ProcessEvent(e events.Event) events.Event {
 			break
 		}
 		return next
-	case *RequestBatch:
+	case *bpb.RequestBatch:
 		err = instance.recvRequestBatch(et)
-	case *PrePrepare:
+	case *bpb.PrePrepare:
 		err = instance.recvPrePrepare(et)
-	case *Prepare:
+	case *bpb.Prepare:
 		err = instance.recvPrepare(et)
-	case *Commit:
+	case *bpb.Commit:
 		err = instance.recvCommit(et)
-	case *Checkpoint:
+	case *bpb.Checkpoint:
 		return instance.recvCheckpoint(et)
-	case *ViewChange:
+	case *bpb.ViewChange:
 		return instance.recvViewChange(et)
-	case *NewView:
+	case *bpb.NewView:
 		return instance.recvNewView(et)
-	case *FetchRequestBatch:
+	case *bpb.FetchRequestBatch:
 		err = instance.recvFetchRequestBatch(et)
 	case returnRequestBatchEvent:
 		return instance.recvReturnRequestBatch(et)
@@ -561,7 +562,7 @@ func (instance *pbftCore) nullRequestHandler() {
 	}
 }
 
-func (instance *pbftCore) recvMsg(msg *Message, senderID uint64) (interface{}, error) {
+func (instance *pbftCore) recvMsg(msg *bpb.Message, senderID uint64) (interface{}, error) {
 	if reqBatch := msg.GetRequestBatch(); reqBatch != nil {
 		return reqBatch, nil
 	} else if preprep := msg.GetPrePrepare(); preprep != nil {
@@ -606,7 +607,7 @@ func (instance *pbftCore) recvMsg(msg *Message, senderID uint64) (interface{}, e
 	return nil, fmt.Errorf("Invalid message: %v", msg)
 }
 
-func (instance *pbftCore) recvRequestBatch(reqBatch *RequestBatch) error {
+func (instance *pbftCore) recvRequestBatch(reqBatch *bpb.RequestBatch) error {
 	digest := hash(reqBatch)
 	logger.Debugf("Replica %d received request batch %s", instance.id, digest)
 
@@ -625,7 +626,7 @@ func (instance *pbftCore) recvRequestBatch(reqBatch *RequestBatch) error {
 	return nil
 }
 
-func (instance *pbftCore) sendPrePrepare(reqBatch *RequestBatch, digest string) {
+func (instance *pbftCore) sendPrePrepare(reqBatch *bpb.RequestBatch, digest string) {
 	logger.Debugf("Replica %d is primary, issuing pre-prepare for request batch %s", instance.id, digest)
 
 	n := instance.seqNo + 1
@@ -651,7 +652,7 @@ func (instance *pbftCore) sendPrePrepare(reqBatch *RequestBatch, digest string) 
 
 	logger.Debugf("Primary %d broadcasting pre-prepare for view=%d/seqNo=%d and digest %s", instance.id, instance.view, n, digest)
 	instance.seqNo = n
-	preprep := &PrePrepare{
+	preprep := &bpb.PrePrepare{
 		View:           instance.view,
 		SequenceNumber: n,
 		BatchDigest:    digest,
@@ -662,7 +663,7 @@ func (instance *pbftCore) sendPrePrepare(reqBatch *RequestBatch, digest string) 
 	cert.prePrepare = preprep
 	cert.digest = digest
 	instance.persistQSet()
-	instance.innerBroadcast(&Message{Payload: &Message_PrePrepare{PrePrepare: preprep}})
+	instance.innerBroadcast(&bpb.Message{Payload: &bpb.Message_PrePrepare{PrePrepare: preprep}})
 	instance.maybeSendCommit(digest, instance.view, n)
 }
 
@@ -671,7 +672,7 @@ func (instance *pbftCore) resubmitRequestBatches() {
 		return
 	}
 
-	var submissionOrder []*RequestBatch
+	var submissionOrder []*bpb.RequestBatch
 
 outer:
 	for d, reqBatch := range instance.outstandingReqBatches {
@@ -696,7 +697,7 @@ outer:
 	}
 }
 
-func (instance *pbftCore) recvPrePrepare(preprep *PrePrepare) error {
+func (instance *pbftCore) recvPrePrepare(preprep *bpb.PrePrepare) error {
 	logger.Debugf("Replica %d received pre-prepare from replica %d for view=%d/seqNo=%d",
 		instance.id, preprep.ReplicaId, preprep.View, preprep.SequenceNumber)
 
@@ -755,7 +756,7 @@ func (instance *pbftCore) recvPrePrepare(preprep *PrePrepare) error {
 
 	if instance.primary(instance.view) != instance.id && instance.prePrepared(preprep.BatchDigest, preprep.View, preprep.SequenceNumber) && !cert.sentPrepare {
 		logger.Debugf("Backup %d broadcasting prepare for view=%d/seqNo=%d", instance.id, preprep.View, preprep.SequenceNumber)
-		prep := &Prepare{
+		prep := &bpb.Prepare{
 			View:           preprep.View,
 			SequenceNumber: preprep.SequenceNumber,
 			BatchDigest:    preprep.BatchDigest,
@@ -764,13 +765,13 @@ func (instance *pbftCore) recvPrePrepare(preprep *PrePrepare) error {
 		cert.sentPrepare = true
 		instance.persistQSet()
 		instance.recvPrepare(prep)
-		return instance.innerBroadcast(&Message{Payload: &Message_Prepare{Prepare: prep}})
+		return instance.innerBroadcast(&bpb.Message{Payload: &bpb.Message_Prepare{Prepare: prep}})
 	}
 
 	return nil
 }
 
-func (instance *pbftCore) recvPrepare(prep *Prepare) error {
+func (instance *pbftCore) recvPrepare(prep *bpb.Prepare) error {
 	logger.Debugf("Replica %d received prepare from replica %d for view=%d/seqNo=%d",
 		instance.id, prep.ReplicaId, prep.View, prep.SequenceNumber)
 
@@ -809,7 +810,7 @@ func (instance *pbftCore) maybeSendCommit(digest string, v uint64, n uint64) err
 	if instance.prepared(digest, v, n) && !cert.sentCommit {
 		logger.Debugf("Replica %d broadcasting commit for view=%d/seqNo=%d",
 			instance.id, v, n)
-		commit := &Commit{
+		commit := &bpb.Commit{
 			View:           v,
 			SequenceNumber: n,
 			BatchDigest:    digest,
@@ -817,12 +818,12 @@ func (instance *pbftCore) maybeSendCommit(digest string, v uint64, n uint64) err
 		}
 		cert.sentCommit = true
 		instance.recvCommit(commit)
-		return instance.innerBroadcast(&Message{&Message_Commit{commit}})
+		return instance.innerBroadcast(&bpb.Message{&bpb.Message_Commit{commit}})
 	}
 	return nil
 }
 
-func (instance *pbftCore) recvCommit(commit *Commit) error {
+func (instance *pbftCore) recvCommit(commit *bpb.Commit) error {
 	logger.Debugf("Replica %d received commit from replica %d for view=%d/seqNo=%d",
 		instance.id, commit.ReplicaId, commit.View, commit.SequenceNumber)
 
@@ -975,7 +976,7 @@ func (instance *pbftCore) Checkpoint(seqNo uint64, id []byte) {
 	logger.Debugf("Replica %d preparing checkpoint for view=%d/seqNo=%d and b64 id of %s",
 		instance.id, instance.view, seqNo, idAsString)
 
-	chkpt := &Checkpoint{
+	chkpt := &bpb.Checkpoint{
 		SequenceNumber: seqNo,
 		ReplicaId:      instance.id,
 		Id:             idAsString,
@@ -984,7 +985,7 @@ func (instance *pbftCore) Checkpoint(seqNo uint64, id []byte) {
 
 	instance.persistCheckpoint(seqNo, id)
 	instance.recvCheckpoint(chkpt)
-	instance.innerBroadcast(&Message{Payload: &Message_Checkpoint{Checkpoint: chkpt}})
+	instance.innerBroadcast(&bpb.Message{Payload: &bpb.Message_Checkpoint{Checkpoint: chkpt}})
 }
 
 func (instance *pbftCore) execDoneSync() {
@@ -1054,7 +1055,7 @@ func (instance *pbftCore) moveWatermarks(n uint64) {
 	instance.resubmitRequestBatches()
 }
 
-func (instance *pbftCore) weakCheckpointSetOutOfRange(chkpt *Checkpoint) bool {
+func (instance *pbftCore) weakCheckpointSetOutOfRange(chkpt *bpb.Checkpoint) bool {
 	H := instance.h + instance.L
 
 	// Track the last observed checkpoint sequence number if it exceeds our high watermark, keyed by replica to prevent unbounded growth
@@ -1085,10 +1086,10 @@ func (instance *pbftCore) weakCheckpointSetOutOfRange(chkpt *Checkpoint) bool {
 			// (This is because all_replicas - missed - me = 3f+1 - f - 1 = 2f)
 			if m := chkptSeqNumArray[len(chkptSeqNumArray)-(instance.f+1)]; m > H {
 				logger.Warningf("Replica %d is out of date, f+1 nodes agree checkpoint with seqNo %d exists but our high water mark is %d", instance.id, chkpt.SequenceNumber, H)
-				instance.reqBatchStore = make(map[string]*RequestBatch) // Discard all our requests, as we will never know which were executed, to be addressed in #394
+				instance.reqBatchStore = make(map[string]*bpb.RequestBatch) // Discard all our requests, as we will never know which were executed, to be addressed in #394
 				instance.persistDelAllRequestBatches()
 				instance.moveWatermarks(m)
-				instance.outstandingReqBatches = make(map[string]*RequestBatch)
+				instance.outstandingReqBatches = make(map[string]*bpb.RequestBatch)
 				instance.skipInProgress = true
 				instance.consumer.invalidateState()
 				instance.stopTimer()
@@ -1103,7 +1104,7 @@ func (instance *pbftCore) weakCheckpointSetOutOfRange(chkpt *Checkpoint) bool {
 	return false
 }
 
-func (instance *pbftCore) witnessCheckpointWeakCert(chkpt *Checkpoint) {
+func (instance *pbftCore) witnessCheckpointWeakCert(chkpt *bpb.Checkpoint) {
 	checkpointMembers := make([]uint64, instance.f+1) // Only ever invoked for the first weak cert, so guaranteed to be f+1
 	i := 0
 	for testChkpt := range instance.checkpointStore {
@@ -1138,7 +1139,7 @@ func (instance *pbftCore) witnessCheckpointWeakCert(chkpt *Checkpoint) {
 	}
 }
 
-func (instance *pbftCore) recvCheckpoint(chkpt *Checkpoint) events.Event {
+func (instance *pbftCore) recvCheckpoint(chkpt *bpb.Checkpoint) events.Event {
 	logger.Debugf("Replica %d received checkpoint from replica %d, seqNo %d, digest %s",
 		instance.id, chkpt.ReplicaId, chkpt.SequenceNumber, chkpt.Id)
 
@@ -1233,9 +1234,9 @@ func (instance *pbftCore) recvCheckpoint(chkpt *Checkpoint) events.Event {
 
 // used in view-change to fetch missing assigned, non-checkpointed requests
 func (instance *pbftCore) fetchRequestBatches() (err error) {
-	var msg *Message
+	var msg *bpb.Message
 	for digest := range instance.missingReqBatches {
-		msg = &Message{Payload: &Message_FetchRequestBatch{FetchRequestBatch: &FetchRequestBatch{
+		msg = &bpb.Message{Payload: &bpb.Message_FetchRequestBatch{FetchRequestBatch: &bpb.FetchRequestBatch{
 			BatchDigest: digest,
 			ReplicaId:   instance.id,
 		}}}
@@ -1245,14 +1246,14 @@ func (instance *pbftCore) fetchRequestBatches() (err error) {
 	return
 }
 
-func (instance *pbftCore) recvFetchRequestBatch(fr *FetchRequestBatch) (err error) {
+func (instance *pbftCore) recvFetchRequestBatch(fr *bpb.FetchRequestBatch) (err error) {
 	digest := fr.BatchDigest
 	if _, ok := instance.reqBatchStore[digest]; !ok {
 		return nil // we don't have it either
 	}
 
 	reqBatch := instance.reqBatchStore[digest]
-	msg := &Message{Payload: &Message_ReturnRequestBatch{ReturnRequestBatch: reqBatch}}
+	msg := &bpb.Message{Payload: &bpb.Message_ReturnRequestBatch{ReturnRequestBatch: reqBatch}}
 	msgPacked, err := proto.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("Error marshalling return-request-batch message: %v", err)
@@ -1264,7 +1265,7 @@ func (instance *pbftCore) recvFetchRequestBatch(fr *FetchRequestBatch) (err erro
 	return
 }
 
-func (instance *pbftCore) recvReturnRequestBatch(reqBatch *RequestBatch) events.Event {
+func (instance *pbftCore) recvReturnRequestBatch(reqBatch *bpb.RequestBatch) events.Event {
 	digest := hash(reqBatch)
 	if _, ok := instance.missingReqBatches[digest]; !ok {
 		return nil // either the wrong digest, or we got it already from someone else
@@ -1281,7 +1282,7 @@ func (instance *pbftCore) recvReturnRequestBatch(reqBatch *RequestBatch) events.
 
 // Marshals a Message and hands it to the Stack. If toSelf is true,
 // the message is also dispatched to the local instance's RecvMsgSync.
-func (instance *pbftCore) innerBroadcast(msg *Message) error {
+func (instance *pbftCore) innerBroadcast(msg *bpb.Message) error {
 	msgRaw, err := proto.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("Cannot marshal message %s", err)
