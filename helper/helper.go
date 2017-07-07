@@ -23,9 +23,10 @@ import (
 	"github.com/bft/helper/persist"
 	"github.com/bft/peer"
 	pb "github.com/bft/protos"
+	"github.com/bft/ledger"
 )
 
-// Helper contains the reference to the peer's MessageHandlerCoordinator
+// PersistHelper contains the reference to the peer's MessageHandlerCoordinator
 type Helper struct {
 	consenter    bft.Consenter
 	coordinator  peer.MessageHandlerCoordinator
@@ -33,7 +34,7 @@ type Helper struct {
 	valid        bool // Whether we believe the state is up to date
 	curBatch     []*pb.Transaction
 	curBatchErrs []*pb.TransactionResult
-	persist.Helper
+	persist.PersistHelper
 
 	executor bft.Executor
 }
@@ -46,7 +47,7 @@ func NewHelper(mhc peer.MessageHandlerCoordinator) *Helper {
 		valid:       true, // Assume our state is consistent until we are told otherwise, actual consensus (pbft) will invalidate this immediately, but noops will not
 	}
 
-	h.executor = executor.NewImpl(h, h, mhc)
+	h.executor = executor.NewExecutorImpl(h, h, mhc)
 	return h
 }
 
@@ -73,8 +74,8 @@ func (h *Helper) GetNetworkInfo() (self *pb.PeerEndpoint, network []*pb.PeerEndp
 			network = append(network, endpoint)
 		}
 	}
-	network = append(network, self)
 
+	network = append(network, self)
 	return
 }
 
@@ -150,15 +151,15 @@ func (h *Helper) Verify(replicaID *pb.PeerID, signature []byte, message []byte) 
 // BeginTxBatch gets invoked when the next round
 // of transaction-batch execution begins
 func (h *Helper) BeginTxBatch(id interface{}) error {
-	//ledger, err := ledger.GetLedger()
-	//if err != nil {
-	//	return fmt.Errorf("Failed to get the ledger: %v", err)
-	//}
-	//if err := ledger.BeginTxBatch(id); err != nil {
-	//	return fmt.Errorf("Failed to begin transaction with the ledger: %v", err)
-	//}
-	//h.curBatch = nil     // TODO, remove after issue 579
-	//h.curBatchErrs = nil // TODO, remove after issue 579
+	ledger, err := ledger.GetLedger()
+	if err != nil {
+		return fmt.Errorf("Failed to get the ledger: %v", err)
+	}
+	if err := ledger.BeginTxBatch(id); err != nil {
+		return fmt.Errorf("Failed to begin transaction with the ledger: %v", err)
+	}
+	h.curBatch = nil     // TODO, remove after issue 579
+	h.curBatchErrs = nil // TODO, remove after issue 579
 	return nil
 }
 
@@ -201,15 +202,15 @@ func (h *Helper) ExecTxs(id interface{}, txs []*pb.Transaction) ([]byte, error) 
 // during execution of this transaction-batch) have been committed to
 // permanent storage.
 func (h *Helper) CommitTxBatch(id interface{}, metadata []byte) (*pb.Block, error) {
-	//ledger, err := ledger.GetLedger()
-	//if err != nil {
-	//	return nil, fmt.Errorf("Failed to get the ledger: %v", err)
-	//}
-	//// TODO fix this one the ledger has been fixed to implement
-	//if err := ledger.CommitTxBatch(id, h.curBatch, h.curBatchErrs, metadata); err != nil {
-	//	return nil, fmt.Errorf("Failed to commit transaction to the ledger: %v", err)
-	//}
-	//
+	ledger, err := ledger.GetLedger()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get the ledger: %v", err)
+	}
+	// TODO fix this one the ledger has been fixed to implement
+	if err := ledger.CommitTxBatch(id, h.curBatch, h.curBatchErrs, metadata); err != nil {
+		return nil, fmt.Errorf("Failed to commit transaction to the ledger: %v", err)
+	}
+
 	//size := ledger.GetBlockchainSize()
 	//defer func() {
 	//	h.curBatch = nil     // TODO, remove after issue 579

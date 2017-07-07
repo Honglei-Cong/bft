@@ -19,30 +19,30 @@ import (
 	"github.com/bft/db"
 )
 
-// Helper provides an abstraction to access the Persist column family
+// PersistHelper provides an abstraction to access the Persist column family
 // in the database.
-type Helper struct{}
+type PersistHelper struct{}
 
 // StoreState stores a key,value pair
-func (h *Helper) StoreState(key string, value []byte) error {
+func (h *PersistHelper) StoreState(key string, value []byte) error {
 	db := db.GetDBHandle()
 	return db.Put(db.PersistCF, []byte("consensus."+key), value)
 }
 
 // DelState removes a key,value pair
-func (h *Helper) DelState(key string) {
+func (h *PersistHelper) DelState(key string) {
 	db := db.GetDBHandle()
 	db.Delete(db.PersistCF, []byte("consensus."+key))
 }
 
 // ReadState retrieves a value to a key
-func (h *Helper) ReadState(key string) ([]byte, error) {
+func (h *PersistHelper) ReadState(key string) ([]byte, error) {
 	db := db.GetDBHandle()
 	return db.Get(db.PersistCF, []byte("consensus."+key))
 }
 
 // ReadStateSet retrieves all key,value pairs where the key starts with prefix
-func (h *Helper) ReadStateSet(prefix string) (map[string][]byte, error) {
+func (h *PersistHelper) ReadStateSet(prefix string) (map[string][]byte, error) {
 	db := db.GetDBHandle()
 	prefixRaw := []byte("consensus." + prefix)
 

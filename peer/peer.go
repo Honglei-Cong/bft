@@ -19,7 +19,6 @@ package peer
 import (
 	"github.com/op/go-logging"
 	pb "github.com/bft/protos"
-	"net"
 )
 
 // Peer provides interface for a peer
@@ -48,6 +47,15 @@ type MessageHandlerCoordinator interface {
 	ExecuteTransaction(transaction *pb.Transaction) *pb.Response
 }
 
+// Coordinator is used to initiate state transfer.  Start must be called before use, and Stop should be called to free allocated resources
+type StateTransferCoordinator interface {
+	Start() // Start the block transfer go routine
+	Stop()  // Stop up the block transfer go routine
+
+	// SyncToTarget attempts to move the state to the given target, returning an error, and whether this target might succeed if attempted at a later time
+	SyncToTarget(blockNumber uint64, blockHash []byte, peerIDs []*pb.PeerID) (error, bool)
+}
+
 // ChatStream interface supported by stream between Peers
 type ChatStream interface {
 	Send(*pb.Message) error
@@ -74,21 +82,3 @@ type HandlerFactory func(MessageHandlerCoordinator, ChatStream, bool) (MessageHa
 
 // EngineFactory for creating new engines
 type EngineFactory func(MessageHandlerCoordinator) (Engine, error)
-
-
-// GetLocalIP returns the non loopback local IP of the host
-func GetLocalIP() string {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return ""
-	}
-	for _, address := range addrs {
-		// check the address type and if it is not a loopback then display it
-		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
-			}
-		}
-	}
-	return ""
-}

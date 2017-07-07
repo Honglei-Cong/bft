@@ -20,12 +20,16 @@ under the License.
 package util
 
 import (
-	"encoding/base64"
 	"crypto/sha1"
-	"github.com/bft/protos"
-	pb "github.com/bft/bftprotos"
-	"github.com/golang/protobuf/proto"
+	"encoding/base64"
 	"strconv"
+
+	pb "github.com/bft/bftprotos"
+	"github.com/bft/protos"
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes/timestamp"
+	"time"
+	"net"
 )
 
 // ComputeCryptoHash should be used in openchain code so that we can change the actual algo used for crypto-Hash at one place
@@ -45,7 +49,6 @@ func Hash(msg interface{}) string {
 		return ""
 	}
 	return base64.StdEncoding.EncodeToString(ComputeCryptoHash(raw))
-
 }
 
 // Returns the peer handle that corresponds to a validator ID (uint64 assigned to it for PBFT)
@@ -64,3 +67,27 @@ func GetValidatorHandles(ids []uint64) (handles []*protos.PeerID) {
 	return
 }
 
+// CreateUtcTimestamp returns a google/protobuf/Timestamp in UTC
+func CreateUtcTimestamp() *timestamp.Timestamp {
+	now := time.Now().UTC()
+	secs := now.Unix()
+	nanos := int32(now.UnixNano() - (secs * 1000000000))
+	return &(timestamp.Timestamp{Seconds: secs, Nanos: nanos})
+}
+
+// GetLocalIP returns the non loopback local IP of the host
+func GetLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addrs {
+		// check the address type and if it is not a loopback then display it
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return ""
+}

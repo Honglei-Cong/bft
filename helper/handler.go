@@ -26,7 +26,7 @@ import (
 var logger *logging.Logger // package-level logger
 
 const (
-	ConsensusBufferSize = 16
+	ConsensusBufferSize = 1000
 )
 
 func init() {
@@ -62,11 +62,6 @@ func NewConsensusHandler(coord peer.MessageHandlerCoordinator,
 	}
 
 	consensusQueueSize := ConsensusBufferSize
-
-	if consensusQueueSize <= 0 {
-		logger.Errorf("peer.validator.consensus.buffersize is set to %d, but this must be a positive integer, defaulting to %d", consensusQueueSize, DefaultConsensusQueueSize)
-		consensusQueueSize = DefaultConsensusQueueSize
-	}
 
 	handler.consenterChan = make(chan *util.Message, consensusQueueSize)
 	getEngineImpl().consensusFan.AddFaninChannel(handler.consenterChan)

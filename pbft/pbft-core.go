@@ -26,7 +26,6 @@ import (
 	"github.com/bft"
 	"github.com/bft/util/events"
 	"github.com/op/go-logging"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/spf13/viper"
 	bpb "github.com/bft/bftprotos"

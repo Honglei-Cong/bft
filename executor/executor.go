@@ -17,16 +17,16 @@ package executor
 
 import (
 	"github.com/bft"
-	"github.com/bft/util/events"
 	"github.com/bft/peer"
 	pb "github.com/bft/protos"
+	"github.com/bft/util/events"
 	"github.com/op/go-logging"
 )
 
 var logger *logging.Logger // package-level logger
 
 func init() {
-	logger = logging.MustGetLogger("consensus/executor")
+	logger = logging.MustGetLogger("bft/executor")
 }
 
 // PartialStack contains the ledger features required by the executor.Coordinator
@@ -35,18 +35,18 @@ type PartialStack interface {
 	GetBlockchainInfo() *pb.BlockchainInfo
 }
 
-type coordinatorImpl struct {
-	manager         events.Manager              // Maintains event thread and sends events to the coordinator
-	rawExecutor     PartialStack                // Does the real interaction with the ledger
-	consumer        bft.ExecutionConsumer // The consumer of this coordinator which receives the callbacks
-	stc             peer.StateTransferCoordinator   // State transfer instance
-	batchInProgress bool                        // Are we mid execution batch
-	skipInProgress  bool                        // Are we mid state transfer
+type executorImpl struct {
+	manager         events.Manager                // Maintains event thread and sends events to the coordinator
+	rawExecutor     PartialStack                  // Does the real interaction with the ledger
+	consumer        bft.ExecutionConsumer         // The consumer of this coordinator which receives the callbacks
+	stc             peer.StateTransferCoordinator // State transfer instance
+	batchInProgress bool                          // Are we mid execution batch
+	skipInProgress  bool                          // Are we mid state transfer
 }
 
 // NewCoordinatorImpl creates a new executor.Coordinator
-func NewImpl(consumer bft.ExecutionConsumer, rawExecutor PartialStack, coord peer.MessageHandlerCoordinator) bft.Executor {
-	co := &coordinatorImpl{
+func NewExecutorImpl(consumer bft.ExecutionConsumer, rawExecutor PartialStack, coord peer.MessageHandlerCoordinator) bft.Executor {
+	co := &executorImpl{
 		rawExecutor: rawExecutor,
 		consumer:    consumer,
 		stc:         peer.NewCoordiatorImpl(coord),
@@ -57,7 +57,7 @@ func NewImpl(consumer bft.ExecutionConsumer, rawExecutor PartialStack, coord pee
 }
 
 // ProcessEvent is the main event loop for the executor.Coordinator
-func (co *coordinatorImpl) ProcessEvent(event events.Event) events.Event {
+func (co *executorImpl) ProcessEvent(event events.Event) events.Event {
 	switch et := event.(type) {
 	case executeEvent:
 		logger.Debug("Executor is processing an executeEvent")
@@ -74,7 +74,6 @@ func (co *coordinatorImpl) ProcessEvent(event events.Event) events.Event {
 		}
 
 		co.rawExecutor.ExecTxs(co, et.txs)
-
 		co.consumer.Executed(et.tag)
 	case commitEvent:
 		logger.Debug("Executor is processing an commitEvent")
@@ -110,11 +109,8 @@ func (co *coordinatorImpl) ProcessEvent(event events.Event) events.Event {
 			return nil
 		}
 
-		err := co.rawExecutor.RollbackTxBatch(co)
-		_ = err // TODO This should probably panic, see issue 752
-
+		co.rawExecutor.RollbackTxBatch(co)
 		co.batchInProgress = false
-
 		co.consumer.RolledBack(et.tag)
 	case stateUpdateEvent:
 		logger.Debug("Executor is processing a stateUpdateEvent")
@@ -150,39 +146,38 @@ func (co *coordinatorImpl) ProcessEvent(event events.Event) events.Event {
 }
 
 // Commit commits whatever outstanding requests have been executed, it is an error to call this without pending executions
-func (co *coordinatorImpl) Commit(tag interface{}, metadata []byte) {
+func (co *executorImpl) Commit(tag interface{}, metadata []byte) {
 	co.manager.Queue() <- commitEvent{tag, metadata}
 }
 
 // Execute adds additional executions to the current batch
-func (co *coordinatorImpl) Execute(tag interface{}, txs []*pb.Transaction) {
+func (co *executorImpl) Execute(tag interface{}, txs []*pb.Transaction) {
 	co.manager.Queue() <- executeEvent{tag, txs}
 }
 
 // Rollback rolls back the executions from the current batch
-func (co *coordinatorImpl) Rollback(tag interface{}) {
+func (co *executorImpl) Rollback(tag interface{}) {
 	co.manager.Queue() <- rollbackEvent{tag}
 }
 
 // UpdateState uses the state transfer subsystem to attempt to progress to a target
-func (co *coordinatorImpl) UpdateState(tag interface{}, info *pb.BlockchainInfo, peers []*pb.PeerID) {
+func (co *executorImpl) UpdateState(tag interface{}, info *pb.BlockchainInfo, peers []*pb.PeerID) {
 	co.manager.Queue() <- stateUpdateEvent{tag, info, peers}
 }
 
 // Start must be called before utilizing the Coordinator
-func (co *coordinatorImpl) Start() {
+func (co *executorImpl) Start() {
 	co.stc.Start()
 	co.manager.Start()
 }
 
 // Halt should be called to clean up resources allocated by the Coordinator
-func (co *coordinatorImpl) Halt() {
+func (co *executorImpl) Halt() {
 	co.stc.Stop()
 	co.manager.Halt()
 }
 
 // Event types
-
 type executeEvent struct {
 	tag interface{}
 	txs []*pb.Transaction

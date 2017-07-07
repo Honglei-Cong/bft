@@ -16,12 +16,13 @@ limitations under the License.
 package helper
 
 import (
-	"github.com/bft"
-	"github.com/bft/peer"
 	"sync"
-	"github.com/bft/util"
-	pb "github.com/bft/protos"
+
+	"github.com/bft"
 	"github.com/bft/pbft"
+	"github.com/bft/peer"
+	pb "github.com/bft/protos"
+	"github.com/bft/util"
 )
 
 // EngineImpl implements a struct to hold consensus.Consenter, PeerEndpoint and MessageFan
@@ -40,49 +41,31 @@ func (eng *EngineImpl) GetHandlerFactory() peer.HandlerFactory {
 // ProcessTransactionMsg processes a Message in context of a Transaction
 func (eng *EngineImpl) ProcessTransactionMsg(msg *pb.Message, tx *pb.Transaction) (response *pb.Response) {
 	//TODO: Do we always verify security, or can we supply a flag on the invoke ot this functions so to bypass check for locally generated transactions?
-	//if tx.Type == pb.Transaction_CHAINCODE_QUERY {
-	//	if !engine.helper.valid {
-	//		logger.Warning("Rejecting query because state is currently not valid")
-	//		return &pb.Response{Status: pb.Response_FAILURE,
-	//			Msg: []byte("Error: state may be inconsistent, cannot query")}
-	//	}
-	//
-	//	// The secHelper is set during creat ChaincodeSupport, so we don't need this step
-	//	// cxt := context.WithValue(context.Background(), "security", secHelper)
-	//	cxt := context.Background()
-	//	//query will ignore events as these are not stored on ledger (and query can report
-	//	//"event" data synchronously anyway)
-	//	result, _, err := chaincode.Execute(cxt, chaincode.GetChain(chaincode.DefaultChain), tx)
-	//	if err != nil {
-	//		response = &pb.Response{Status: pb.Response_FAILURE,
-	//			Msg: []byte(fmt.Sprintf("Error:%s", err))}
-	//	} else {
-	//		response = &pb.Response{Status: pb.Response_SUCCESS, Msg: result}
-	//	}
-	//} else {
-	//	// Chaincode Transaction
-	//	response = &pb.Response{Status: pb.Response_SUCCESS, Msg: []byte(tx.Txid)}
-	//
-	//	//TODO: Do we need to verify security, or can we supply a flag on the invoke ot this functions
-	//	// If we fail to marshal or verify the tx, don't send it to consensus plugin
-	//	if response.Status == pb.Response_FAILURE {
-	//		return response
-	//	}
-	//
-	//	// Pass the message to the consenter (eg. PBFT) NOTE: Make sure engine has been initialized
-	//	if eng.consenter == nil {
-	//		return &pb.Response{Status: pb.Response_FAILURE, Msg: []byte("Engine not initialized")}
-	//	}
-	//	// TODO, do we want to put these requests into a queue? This will block until
-	//	// the consenter gets around to handling the message, but it also provides some
-	//	// natural feedback to the REST API to determine how long it takes to queue messages
-	//	err := eng.consenter.RecvMsg(msg, eng.peerEndpoint.ID)
-	//	if err != nil {
-	//		response = &pb.Response{Status: pb.Response_FAILURE, Msg: []byte(err.Error())}
-	//	}
-	//}
-	//return response
-	return nil
+	if tx.Type == pb.Transaction_CHAINCODE_QUERY {
+		response = &pb.Response{Status: pb.Response_SUCCESS, Msg: nil}
+	} else {
+		// Chaincode Transaction
+		response = &pb.Response{Status: pb.Response_SUCCESS, Msg: []byte(tx.Txid)}
+
+		//TODO: Do we need to verify security, or can we supply a flag on the invoke ot this functions
+		// If we fail to marshal or verify the tx, don't send it to consensus plugin
+		if response.Status == pb.Response_FAILURE {
+			return response
+		}
+
+		// Pass the message to the consenter (eg. PBFT) NOTE: Make sure engine has been initialized
+		if eng.consenter == nil {
+			return &pb.Response{Status: pb.Response_FAILURE, Msg: []byte("Engine not initialized")}
+		}
+		// TODO, do we want to put these requests into a queue? This will block until
+		// the consenter gets around to handling the message, but it also provides some
+		// natural feedback to the REST API to determine how long it takes to queue messages
+		err := eng.consenter.RecvMsg(msg, eng.peerEndpoint.ID)
+		if err != nil {
+			response = &pb.Response{Status: pb.Response_FAILURE, Msg: []byte(err.Error())}
+		}
+	}
+	return response
 }
 
 func (eng *EngineImpl) setConsenter(consenter bft.Consenter) *EngineImpl {

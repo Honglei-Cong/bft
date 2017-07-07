@@ -16,8 +16,8 @@ limitations under the License.
 package bft
 
 import (
-	pb "github.com/bft/protos"
 	"github.com/bft/comm"
+	pb "github.com/bft/protos"
 )
 
 // ExecutionConsumer allows callbacks from asycnhronous execution and statetransfer
