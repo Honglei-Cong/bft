@@ -18,8 +18,8 @@ package executor
 import (
 	"github.com/bft"
 	"github.com/bft/util/events"
+	"github.com/bft/peer"
 	pb "github.com/bft/protos"
-
 	"github.com/op/go-logging"
 )
 
@@ -39,17 +39,17 @@ type coordinatorImpl struct {
 	manager         events.Manager              // Maintains event thread and sends events to the coordinator
 	rawExecutor     PartialStack                // Does the real interaction with the ledger
 	consumer        bft.ExecutionConsumer // The consumer of this coordinator which receives the callbacks
-	stc             bft.Coordinator   // State transfer instance
+	stc             peer.StateTransferCoordinator   // State transfer instance
 	batchInProgress bool                        // Are we mid execution batch
 	skipInProgress  bool                        // Are we mid state transfer
 }
 
 // NewCoordinatorImpl creates a new executor.Coordinator
-func NewImpl(consumer bft.ExecutionConsumer, rawExecutor PartialStack, stps statetransfer.PartialStack) bft.Executor {
+func NewImpl(consumer bft.ExecutionConsumer, rawExecutor PartialStack, coord peer.MessageHandlerCoordinator) bft.Executor {
 	co := &coordinatorImpl{
 		rawExecutor: rawExecutor,
 		consumer:    consumer,
-		stc:         statetransfer.NewCoordinatorImpl(stps),
+		stc:         peer.NewCoordiatorImpl(coord),
 		manager:     events.NewManagerImpl(),
 	}
 	co.manager.SetReceiver(co)

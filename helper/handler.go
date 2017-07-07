@@ -17,11 +17,10 @@ package helper
 
 import (
 	"fmt"
-
 	pb "github.com/bft/protos"
 	"github.com/bft/util"
 	"github.com/op/go-logging"
-	"github.com/bft"
+	"github.com/bft/peer"
 )
 
 var logger *logging.Logger // package-level logger
@@ -42,17 +41,17 @@ const (
 // ConsensusHandler handles consensus messages.
 // It also implements the Stack.
 type ConsensusHandler struct {
-	bft.MessageHandler
+	peer.MessageHandler
 	consenterChan chan *util.Message
-	coordinator   bft.MessageHandlerCoordinator
+	coordinator   peer.MessageHandlerCoordinator
 }
 
 // NewConsensusHandler constructs a new MessageHandler for the plugin.
 // Is instance of peer.HandlerFactory
-func NewConsensusHandler(coord bft.MessageHandlerCoordinator,
-	stream bft.ChatStream, initiatedStream bool) (bft.MessageHandler, error) {
+func NewConsensusHandler(coord peer.MessageHandlerCoordinator,
+	stream peer.ChatStream, initiatedStream bool) (peer.MessageHandler, error) {
 
-	peerHandler, err := bft.NewPeerHandler(coord, stream, initiatedStream)
+	peerHandler, err := peer.NewPeerHandler(coord, stream, initiatedStream)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating PeerHandler: %s", err)
 	}

@@ -21,12 +21,13 @@ import (
 	"reflect"
 
 	"github.com/bft/util/events"
+	pb "github.com/bft/bftprotos"
 )
 
 // viewChangeQuorumEvent is returned to the event loop when a new ViewChange message is received which is part of a quorum cert
 type viewChangeQuorumEvent struct{}
 
-func (instance *pbftCore) correctViewChange(vc *ViewChange) bool {
+func (instance *pbftCore) correctViewChange(vc *pb.ViewChange) bool {
 	for _, p := range append(vc.Pset, vc.Qset...) {
 		if !(p.View < vc.View && p.SequenceNumber > vc.H && p.SequenceNumber <= vc.H+instance.L) {
 			logger.Debugf("Replica %d invalid p entry in view-change: vc(v:%d h:%d) p(v:%d n:%d)",
@@ -47,8 +48,8 @@ func (instance *pbftCore) correctViewChange(vc *ViewChange) bool {
 	return true
 }
 
-func (instance *pbftCore) calcPSet() map[uint64]*ViewChange_PQ {
-	pset := make(map[uint64]*ViewChange_PQ)
+func (instance *pbftCore) calcPSet() map[uint64]*pb.ViewChange_PQ {
+	pset := make(map[uint64]*pb.ViewChange_PQ)
 
 	for n, p := range instance.pset {
 		pset[n] = p
@@ -73,7 +74,7 @@ func (instance *pbftCore) calcPSet() map[uint64]*ViewChange_PQ {
 			continue
 		}
 
-		pset[idx.n] = &ViewChange_PQ{
+		pset[idx.n] = &pb.ViewChange_PQ{
 			SequenceNumber: idx.n,
 			BatchDigest:    digest,
 			View:           idx.v,
@@ -83,8 +84,8 @@ func (instance *pbftCore) calcPSet() map[uint64]*ViewChange_PQ {
 	return pset
 }
 
-func (instance *pbftCore) calcQSet() map[qidx]*ViewChange_PQ {
-	qset := make(map[qidx]*ViewChange_PQ)
+func (instance *pbftCore) calcQSet() map[qidx]*pb.ViewChange_PQ {
+	qset := make(map[qidx]*pb.ViewChange_PQ)
 
 	for n, q := range instance.qset {
 		qset[n] = q
@@ -111,7 +112,7 @@ func (instance *pbftCore) calcQSet() map[qidx]*ViewChange_PQ {
 			continue
 		}
 
-		qset[qi] = &ViewChange_PQ{
+		qset[qi] = &pb.ViewChange_PQ{
 			SequenceNumber: idx.n,
 			BatchDigest:    digest,
 			View:           idx.v,
@@ -143,14 +144,14 @@ func (instance *pbftCore) sendViewChange() events.Event {
 		}
 	}
 
-	vc := &ViewChange{
+	vc := &pb.ViewChange{
 		View:      instance.view,
 		H:         instance.h,
 		ReplicaId: instance.id,
 	}
 
 	for n, id := range instance.chkpts {
-		vc.Cset = append(vc.Cset, &ViewChange_C{
+		vc.Cset = append(vc.Cset, &pb.ViewChange_C{
 			SequenceNumber: n,
 			Id:             id,
 		})
@@ -175,14 +176,14 @@ func (instance *pbftCore) sendViewChange() events.Event {
 	logger.Infof("Replica %d sending view-change, v:%d, h:%d, |C|:%d, |P|:%d, |Q|:%d",
 		instance.id, vc.View, vc.H, len(vc.Cset), len(vc.Pset), len(vc.Qset))
 
-	instance.innerBroadcast(&Message{Payload: &Message_ViewChange{ViewChange: vc}})
+	instance.innerBroadcast(&pb.Message{Payload: &pb.Message_ViewChange{ViewChange: vc}})
 
 	instance.vcResendTimer.Reset(instance.vcResendTimeout, viewChangeResendTimerEvent{})
 
 	return instance.recvViewChange(vc)
 }
 
-func (instance *pbftCore) recvViewChange(vc *ViewChange) events.Event {
+func (instance *pbftCore) recvViewChange(vc *pb.ViewChange) events.Event {
 	logger.Infof("Replica %d received view-change from replica %d, v:%d, h:%d, |C|:%d, |P|:%d, |Q|:%d",
 		instance.id, vc.ReplicaId, vc.View, vc.H, len(vc.Cset), len(vc.Pset), len(vc.Qset))
 
@@ -274,7 +275,7 @@ func (instance *pbftCore) sendNewView() events.Event {
 		return nil
 	}
 
-	nv := &NewView{
+	nv := &pb.NewView{
 		View:      instance.view,
 		Vset:      vset,
 		Xset:      msgList,
@@ -284,12 +285,12 @@ func (instance *pbftCore) sendNewView() events.Event {
 	logger.Infof("Replica %d is new primary, sending new-view, v:%d, X:%+v",
 		instance.id, nv.View, nv.Xset)
 
-	instance.innerBroadcast(&Message{Payload: &Message_NewView{NewView: nv}})
+	instance.innerBroadcast(&pb.Message{Payload: &pb.Message_NewView{NewView: nv}})
 	instance.newViewStore[instance.view] = nv
 	return instance.processNewView()
 }
 
-func (instance *pbftCore) recvNewView(nv *NewView) events.Event {
+func (instance *pbftCore) recvNewView(nv *pb.NewView) events.Event {
 	logger.Infof("Replica %d received new-view %d",
 		instance.id, nv.View)
 
@@ -453,7 +454,7 @@ func (instance *pbftCore) processNewView() events.Event {
 	return nil
 }
 
-func (instance *pbftCore) processNewView2(nv *NewView) events.Event {
+func (instance *pbftCore) processNewView2(nv *pb.NewView) events.Event {
 	logger.Infof("Replica %d accepting new-view to view %d", instance.id, instance.view)
 
 	instance.stopTimer()
@@ -472,7 +473,7 @@ func (instance *pbftCore) processNewView2(nv *NewView) events.Event {
 		if !ok && d != "" {
 			logger.Criticalf("Replica %d is missing request batch for seqNo=%d with digest '%s' for assigned prepare after fetching, this indicates a serious bug", instance.id, n, d)
 		}
-		preprep := &PrePrepare{
+		preprep := &pb.PrePrepare{
 			View:           instance.view,
 			SequenceNumber: n,
 			BatchDigest:    d,
@@ -492,7 +493,7 @@ func (instance *pbftCore) processNewView2(nv *NewView) events.Event {
 
 	if instance.primary(instance.view) != instance.id {
 		for n, d := range nv.Xset {
-			prep := &Prepare{
+			prep := &pb.Prepare{
 				View:           instance.view,
 				SequenceNumber: n,
 				BatchDigest:    d,
@@ -503,7 +504,7 @@ func (instance *pbftCore) processNewView2(nv *NewView) events.Event {
 				cert.sentPrepare = true
 				instance.recvPrepare(prep)
 			}
-			instance.innerBroadcast(&Message{Payload: &Message_Prepare{Prepare: prep}})
+			instance.innerBroadcast(&pb.Message{Payload: &pb.Message_Prepare{Prepare: prep}})
 		}
 	} else {
 		logger.Debugf("Replica %d is now primary, attempting to resubmit requests", instance.id)
@@ -517,7 +518,7 @@ func (instance *pbftCore) processNewView2(nv *NewView) events.Event {
 	return viewChangedEvent{}
 }
 
-func (instance *pbftCore) getViewChanges() (vset []*ViewChange) {
+func (instance *pbftCore) getViewChanges() (vset []*pb.ViewChange) {
 	for _, vc := range instance.viewChangeStore {
 		vset = append(vset, vc)
 	}
@@ -525,8 +526,8 @@ func (instance *pbftCore) getViewChanges() (vset []*ViewChange) {
 	return
 }
 
-func (instance *pbftCore) selectInitialCheckpoint(vset []*ViewChange) (checkpoint ViewChange_C, ok bool, replicas []uint64) {
-	checkpoints := make(map[ViewChange_C][]*ViewChange)
+func (instance *pbftCore) selectInitialCheckpoint(vset []*pb.ViewChange) (checkpoint pb.ViewChange_C, ok bool, replicas []uint64) {
+	checkpoints := make(map[pb.ViewChange_C][]*pb.ViewChange)
 	for _, vc := range vset {
 		for _, c := range vc.Cset { // TODO, verify that we strip duplicate checkpoints from this set
 			checkpoints[*c] = append(checkpoints[*c], vc)
@@ -577,7 +578,7 @@ func (instance *pbftCore) selectInitialCheckpoint(vset []*ViewChange) (checkpoin
 	return
 }
 
-func (instance *pbftCore) assignSequenceNumbers(vset []*ViewChange, h uint64) (msgList map[uint64]string) {
+func (instance *pbftCore) assignSequenceNumbers(vset []*pb.ViewChange, h uint64) (msgList map[uint64]string) {
 	msgList = make(map[uint64]string)
 
 	maxN := h + 1

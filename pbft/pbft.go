@@ -24,26 +24,14 @@ import (
 
 	"github.com/bft"
 	pb "github.com/bft/protos"
-
-	"github.com/golang/protobuf/proto"
 	"github.com/spf13/viper"
 )
 
 const configPrefix = "CORE_PBFT"
-
-var pluginInstance bft.Consenter // singleton service
 var config *viper.Viper
 
 func init() {
 	config = loadConfig()
-}
-
-// GetPbftConsenter returns the handle to the Consenter singleton
-func GetPbftConsenter(c bft.Stack) bft.Consenter {
-	if pluginInstance == nil {
-		pluginInstance = New(c)
-	}
-	return pluginInstance
 }
 
 // New creates a new Obc* instance that provides the Consenter interface.
@@ -51,13 +39,7 @@ func GetPbftConsenter(c bft.Stack) bft.Consenter {
 func New(stack bft.Stack) bft.Consenter {
 	handle, _, _ := stack.GetNetworkHandles()
 	id, _ := getValidatorID(handle)
-
-	switch strings.ToLower(config.GetString("general.mode")) {
-	case "batch":
-		return newObcBatch(id, config, stack)
-	default:
-		panic(fmt.Errorf("Invalid PBFT mode: %s", config.GetString("general.mode")))
-	}
+	return newObcBatch(id, config, stack)
 }
 
 func loadConfig() (config *viper.Viper) {
@@ -102,57 +84,4 @@ func getValidatorID(handle *pb.PeerID) (id uint64, err error) {
 		where X is a unique integer between 0 and N-1
 		(N being the maximum number of VPs in the network`)
 	return
-}
-
-// Returns the peer handle that corresponds to a validator ID (uint64 assigned to it for PBFT)
-func getValidatorHandle(id uint64) (handle *pb.PeerID, err error) {
-	// as requested here: https://github.com/hyperledger/fabric/issues/462#issuecomment-170785410
-	name := "vp" + strconv.FormatUint(id, 10)
-	return &pb.PeerID{Name: name}, nil
-}
-
-// Returns the peer handles corresponding to a list of replica ids
-func getValidatorHandles(ids []uint64) (handles []*pb.PeerID) {
-	handles = make([]*pb.PeerID, len(ids))
-	for i, id := range ids {
-		handles[i], _ = getValidatorHandle(id)
-	}
-	return
-}
-
-type obcGeneric struct {
-	stack bft.Stack
-	pbft  *pbftCore
-}
-
-func (op *obcGeneric) skipTo(seqNo uint64, id []byte, replicas []uint64) {
-	info := &pb.BlockchainInfo{}
-	err := proto.Unmarshal(id, info)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Error unmarshaling: %s", err))
-		return
-	}
-	op.stack.UpdateState(&checkpointMessage{seqNo, id}, info, getValidatorHandles(replicas))
-}
-
-func (op *obcGeneric) invalidateState() {
-	op.stack.InvalidateState()
-}
-
-func (op *obcGeneric) validateState() {
-	op.stack.ValidateState()
-}
-
-func (op *obcGeneric) getState() []byte {
-	return op.stack.GetBlockchainInfoBlob()
-}
-
-func (op *obcGeneric) getLastSeqNo() (uint64, error) {
-	raw, err := op.stack.GetBlockHeadMetadata()
-	if err != nil {
-		return 0, err
-	}
-	meta := &Metadata{}
-	proto.Unmarshal(raw, meta)
-	return meta.SeqNo, nil
 }

@@ -17,6 +17,7 @@ package bft
 
 import (
 	pb "github.com/bft/protos"
+	"github.com/bft/comm"
 )
 
 // ExecutionConsumer allows callbacks from asycnhronous execution and statetransfer
@@ -34,24 +35,6 @@ type Consenter interface {
 	ExecutionConsumer
 }
 
-// Inquirer is used to retrieve info about the validating network
-type Inquirer interface {
-	GetNetworkInfo() (self *pb.PeerEndpoint, network []*pb.PeerEndpoint, err error)
-	GetNetworkHandles() (self *pb.PeerID, network []*pb.PeerID, err error)
-}
-
-// Communicator is used to send messages to other validators
-type Communicator interface {
-	Broadcast(msg *pb.Message, peerType pb.PeerEndpoint_Type) error
-	Unicast(msg *pb.Message, receiverHandle *pb.PeerID) error
-}
-
-// NetworkStack is used to retrieve network info and send messages
-type NetworkStack interface {
-	Communicator
-	Inquirer
-}
-
 // SecurityUtils is used to access the sign/verify methods from the crypto package
 type SecurityUtils interface {
 	Sign(msg []byte) ([]byte, error)
@@ -59,13 +42,10 @@ type SecurityUtils interface {
 }
 
 // ReadOnlyLedger is used for interrogating the blockchain
-//type ReadOnlyLedger interface {
-//	GetBlock(id uint64) (block *pb.Block, err error)
-//	GetBlockchainSize() uint64
-//	GetBlockchainInfo() *pb.BlockchainInfo
-//	GetBlockchainInfoBlob() []byte
-//	GetBlockHeadMetadata() ([]byte, error)
-//}
+type ReadOnlyLedger interface {
+	GetBlockchainInfoBlob() []byte
+	GetBlockHeadMetadata() ([]byte, error)
+}
 
 // LegacyExecutor is used to invoke transactions, potentially modifying the backing ledger
 type LegacyExecutor interface {
@@ -104,11 +84,11 @@ type StatePersistor interface {
 
 // Stack is the set of stack-facing methods available to the consensus plugin
 type Stack interface {
-	NetworkStack
+	comm.Communicator
 	SecurityUtils
 	Executor
 	LegacyExecutor
 	LedgerManager
-	//ReadOnlyLedger
+	ReadOnlyLedger
 	StatePersistor
 }

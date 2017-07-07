@@ -23,19 +23,19 @@ import (
 	"github.com/bft/util/events"
 	pb "github.com/bft/protos"
 	bpb "github.com/bft/bftprotos"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/op/go-logging"
 	"github.com/spf13/viper"
 	"github.com/bft/comm"
 	"github.com/bft/common"
+	"github.com/bft/util"
 )
 
 type obcBatch struct {
-	obcGeneric
+	stack bft.Stack
 	externalEventReceiver
-	pbft        *pbftCore
+	pbft  *pbftCore
 	broadcaster *comm.Broadcaster
 
 	batchSize        int
@@ -73,7 +73,7 @@ func newObcBatch(id uint64, config *viper.Viper, stack bft.Stack) *obcBatch {
 	var err error
 
 	op := &obcBatch{
-		obcGeneric: obcGeneric{stack: stack},
+		stack: stack,
 	}
 
 	op.persistForward.persistor = stack
@@ -187,7 +187,7 @@ func (op *obcBatch) sign(msg []byte) ([]byte, error) {
 
 // verify message signature
 func (op *obcBatch) verify(senderID uint64, signature []byte, message []byte) error {
-	senderHandle, err := getValidatorHandle(senderID)
+	senderHandle, err := util.GetValidatorHandle(senderID)
 	if err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func (op *obcBatch) execute(seqNo uint64, reqBatch *bpb.RequestBatch) {
 			continue
 		}
 		logger.Debugf("Batch replica %d executing request with transaction %s from outstandingReqs, seqNo=%d", op.pbft.id, tx.Txid, seqNo)
-		if outstanding, pending := op.reqStore.remove(req); !outstanding || !pending {
+		if outstanding, pending := op.reqStore.Remove(req); !outstanding || !pending {
 			logger.Debugf("Batch replica %d missing transaction %s outstanding=%v, pending=%v", op.pbft.id, tx.Txid, outstanding, pending)
 		}
 		txs = append(txs, tx)
@@ -221,10 +221,10 @@ func (op *obcBatch) execute(seqNo uint64, reqBatch *bpb.RequestBatch) {
 
 func (op *obcBatch) leaderProcReq(req *bpb.Request) events.Event {
 	// XXX check req sig
-	digest := hash(req)
+	digest := util.Hash(req)
 	logger.Debugf("Batch primary %d queueing new request %s", op.pbft.id, digest)
 	op.batchStore = append(op.batchStore, req)
-	op.reqStore.storePending(req)
+	op.reqStore.StorePending(req)
 
 	if !op.batchTimerActive {
 		op.startBatchTimer()
@@ -289,7 +289,7 @@ func (op *obcBatch) processMessage(ocMsg *pb.Message, senderHandle *pb.PeerID) e
 		}
 
 		op.logAddTxFromRequest(req)
-		op.reqStore.storeOutstanding(req)
+		op.reqStore.StoreOutstanding(req)
 		if (op.pbft.primary(op.pbft.view) == op.pbft.id) && op.pbft.activeView {
 			return op.leaderProcReq(req)
 		}
@@ -339,8 +339,8 @@ func (op *obcBatch) resubmitOutstandingReqs() events.Event {
 	if op.pbft.primary(op.pbft.view) == op.pbft.id && op.pbft.activeView && op.pbft.currentExec == nil {
 		needed := op.batchSize - len(op.batchStore)
 
-		for op.reqStore.hasNonPending() {
-			outstanding := op.reqStore.getNextNonPending(needed)
+		for op.reqStore.HasNonPending() {
+			outstanding := op.reqStore.GetNextNonPending(needed)
 
 			// If we have enough outstanding requests, this will trigger a batch
 			for _, nreq := range outstanding {
@@ -481,4 +481,36 @@ func (op *obcBatch) startTimerIfOutstandingRequests() {
 		return
 	}
 	op.pbft.softStartTimer(op.pbft.requestTimeout, "Batch outstanding requests")
+}
+
+func (op *obcBatch) skipTo(seqNo uint64, id []byte, replicas []uint64) {
+	info := &pb.BlockchainInfo{}
+	err := proto.Unmarshal(id, info)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Error unmarshaling: %s", err))
+		return
+	}
+	op.stack.UpdateState(&checkpointMessage{seqNo, id}, info, util.GetValidatorHandles(replicas))
+}
+
+func (op *obcBatch) invalidateState() {
+	op.stack.InvalidateState()
+}
+
+func (op *obcBatch) validateState() {
+	op.stack.ValidateState()
+}
+
+func (op *obcBatch) getState() []byte {
+	return op.stack.GetBlockchainInfoBlob()
+}
+
+func (op *obcBatch) getLastSeqNo() (uint64, error) {
+	raw, err := op.stack.GetBlockHeadMetadata()
+	if err != nil {
+		return 0, err
+	}
+	meta := &bpb.Metadata{}
+	proto.Unmarshal(raw, meta)
+	return meta.SeqNo, nil
 }

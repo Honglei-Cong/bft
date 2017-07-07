@@ -20,10 +20,12 @@ import (
 	"fmt"
 
 	"github.com/golang/protobuf/proto"
+	pb "github.com/bft/bftprotos"
+	"github.com/bft/util"
 )
 
 func (instance *pbftCore) persistQSet() {
-	var qset []*ViewChange_PQ
+	var qset []*pb.ViewChange_PQ
 
 	for _, q := range instance.calcQSet() {
 		qset = append(qset, q)
@@ -33,7 +35,7 @@ func (instance *pbftCore) persistQSet() {
 }
 
 func (instance *pbftCore) persistPSet() {
-	var pset []*ViewChange_PQ
+	var pset []*pb.ViewChange_PQ
 
 	for _, p := range instance.calcPSet() {
 		pset = append(pset, p)
@@ -42,8 +44,8 @@ func (instance *pbftCore) persistPSet() {
 	instance.persistPQSet("pset", pset)
 }
 
-func (instance *pbftCore) persistPQSet(key string, set []*ViewChange_PQ) {
-	raw, err := proto.Marshal(&PQset{set})
+func (instance *pbftCore) persistPQSet(key string, set []*pb.ViewChange_PQ) {
+	raw, err := proto.Marshal(&pb.PQset{set})
 	if err != nil {
 		logger.Warningf("Replica %d could not persist pqset: %s: error: %s", instance.id, key, err)
 		return
@@ -54,13 +56,13 @@ func (instance *pbftCore) persistPQSet(key string, set []*ViewChange_PQ) {
 	}
 }
 
-func (instance *pbftCore) restorePQSet(key string) []*ViewChange_PQ {
+func (instance *pbftCore) restorePQSet(key string) []*pb.ViewChange_PQ {
 	raw, err := instance.consumer.ReadState(key)
 	if err != nil {
 		logger.Debugf("Replica %d could not restore state %s: %s", instance.id, key, err)
 		return nil
 	}
-	val := &PQset{}
+	val := &pb.PQset{}
 	err = proto.Unmarshal(raw, val)
 	if err != nil {
 		logger.Errorf("Replica %d could not unmarshal %s - local state is damaged: %s", instance.id, key, err)
@@ -109,7 +111,7 @@ func (instance *pbftCore) persistDelCheckpoint(seqNo uint64) {
 }
 
 func (instance *pbftCore) restoreState() {
-	updateSeqView := func(set []*ViewChange_PQ) {
+	updateSeqView := func(set []*pb.ViewChange_PQ) {
 		for _, e := range set {
 			if instance.view < e.View {
 				instance.view = e.View
@@ -135,12 +137,12 @@ func (instance *pbftCore) restoreState() {
 	reqBatchesPacked, err := instance.consumer.ReadStateSet("reqBatch.")
 	if err == nil {
 		for k, v := range reqBatchesPacked {
-			reqBatch := &RequestBatch{}
+			reqBatch := &pb.RequestBatch{}
 			err = proto.Unmarshal(v, reqBatch)
 			if err != nil {
 				logger.Warningf("Replica %d could not restore request batch %s", instance.id, k)
 			} else {
-				instance.reqBatchStore[hash(reqBatch)] = reqBatch
+				instance.reqBatchStore[util.Hash(reqBatch)] = reqBatch
 			}
 		}
 	} else {

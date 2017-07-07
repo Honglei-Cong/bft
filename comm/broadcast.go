@@ -20,13 +20,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bft"
 	pb "github.com/bft/protos"
+	"github.com/op/go-logging"
+	"github.com/bft/util"
 )
 
-type Communicator interface {
-	bft.Communicator
-	bft.Inquirer
+var logger *logging.Logger // package-level logger
+
+func init() {
+	logger = logging.MustGetLogger("bft/comm")
 }
 
 type Broadcaster struct {
@@ -87,7 +89,7 @@ func (b *Broadcaster) drainerSend(dest uint64, send *sendRequest, successLastTim
 	defer func() {
 		b.closed.Done()
 	}()
-	h, err := getValidatorHandle(dest)
+	h, err := util.GetValidatorHandle(dest)
 	if err != nil {
 		if successLastTime {
 			logger.Warningf("could not get handle for replica %d", dest)

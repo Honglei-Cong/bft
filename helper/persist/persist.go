@@ -16,7 +16,7 @@ limitations under the License.
 package persist
 
 import (
-	"github.com/bft/core/db"
+	"github.com/bft/db"
 )
 
 // Helper provides an abstraction to access the Persist column family

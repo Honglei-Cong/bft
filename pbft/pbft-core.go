@@ -30,6 +30,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/spf13/viper"
 	bpb "github.com/bft/bftprotos"
+	"github.com/bft/util"
 )
 
 // =============================================================================
@@ -39,7 +40,7 @@ import (
 var logger *logging.Logger // package-level logger
 
 func init() {
-	logger = logging.MustGetLogger("consensus/pbft")
+	logger = logging.MustGetLogger("bft/pbft")
 }
 
 const (
@@ -608,7 +609,7 @@ func (instance *pbftCore) recvMsg(msg *bpb.Message, senderID uint64) (interface{
 }
 
 func (instance *pbftCore) recvRequestBatch(reqBatch *bpb.RequestBatch) error {
-	digest := hash(reqBatch)
+	digest := util.Hash(reqBatch)
 	logger.Debugf("Replica %d received request batch %s", instance.id, digest)
 
 	instance.reqBatchStore[digest] = reqBatch
@@ -740,7 +741,7 @@ func (instance *pbftCore) recvPrePrepare(preprep *bpb.PrePrepare) error {
 
 	// Store the request batch if, for whatever reason, we haven't received it from an earlier broadcast
 	if _, ok := instance.reqBatchStore[preprep.BatchDigest]; !ok && preprep.BatchDigest != "" {
-		digest := hash(preprep.GetRequestBatch())
+		digest := util.Hash(preprep.GetRequestBatch())
 		if digest != preprep.BatchDigest {
 			logger.Warningf("Pre-prepare and request digest do not match: request %s, digest %s", digest, preprep.BatchDigest)
 			return nil
@@ -1266,7 +1267,7 @@ func (instance *pbftCore) recvFetchRequestBatch(fr *bpb.FetchRequestBatch) (err 
 }
 
 func (instance *pbftCore) recvReturnRequestBatch(reqBatch *bpb.RequestBatch) events.Event {
-	digest := hash(reqBatch)
+	digest := util.Hash(reqBatch)
 	if _, ok := instance.missingReqBatches[digest]; !ok {
 		return nil // either the wrong digest, or we got it already from someone else
 	}

@@ -17,10 +17,8 @@ package helper
 
 import (
 	"github.com/bft"
-	"github.com/bft/core/peer"
-
+	"github.com/bft/peer"
 	"sync"
-
 	"github.com/bft/util"
 	pb "github.com/bft/protos"
 	"github.com/bft/pbft"
@@ -106,12 +104,12 @@ func getEngineImpl() *EngineImpl {
 }
 
 // GetEngine returns initialized peer.Engine
-func GetEngine(coord bft.MessageHandlerCoordinator) (peer.Engine, error) {
+func GetEngine(coord peer.MessageHandlerCoordinator) (peer.Engine, error) {
 	var err error
 	engineOnce.Do(func() {
 		engine = new(EngineImpl)
 		engine.helper = NewHelper(coord)
-		engine.consenter = pbft.GetPbftConsenter(engine.helper)
+		engine.consenter = pbft.New(engine.helper)
 		engine.helper.setConsenter(engine.consenter)
 		engine.peerEndpoint, err = coord.GetPeerEndpoint()
 		engine.consensusFan = util.NewMessageFan()

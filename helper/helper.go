@@ -18,12 +18,10 @@ package helper
 import (
 	"fmt"
 	"github.com/spf13/viper"
-	"golang.org/x/net/context"
 	"github.com/bft"
 	"github.com/bft/executor"
 	"github.com/bft/helper/persist"
-	crypto "github.com/bft/core/crypto"
-	"github.com/bft/core/peer"
+	"github.com/bft/peer"
 	pb "github.com/bft/protos"
 )
 
@@ -33,9 +31,8 @@ type Helper struct {
 	coordinator  peer.MessageHandlerCoordinator
 	secOn        bool
 	valid        bool // Whether we believe the state is up to date
-	secHelper    crypto.Peer
-	curBatch     []*pb.Transaction       // TODO, remove after issue 579
-	curBatchErrs []*pb.TransactionResult // TODO, remove after issue 579
+	curBatch     []*pb.Transaction
+	curBatchErrs []*pb.TransactionResult
 	persist.Helper
 
 	executor bft.Executor
@@ -46,7 +43,6 @@ func NewHelper(mhc peer.MessageHandlerCoordinator) *Helper {
 	h := &Helper{
 		coordinator: mhc,
 		secOn:       viper.GetBool("security.enabled"),
-		secHelper:   mhc.GetSecHelper(),
 		valid:       true, // Assume our state is consistent until we are told otherwise, actual consensus (pbft) will invalidate this immediately, but noops will not
 	}
 
@@ -336,3 +332,16 @@ func (h *Helper) Start() {}
 
 // Halt is a byproduct of the consensus API needing some cleaning, for now it's a no-op
 func (h *Helper) Halt() {}
+
+// GetBlockchainInfo gets the ledger's BlockchainInfo
+func (h *Helper) GetBlockchainInfoBlob() []byte {
+	return nil
+}
+
+func (h *Helper) GetBlockchainInfo() *pb.BlockchainInfo {
+	return nil
+}
+
+func (h *Helper) GetBlockHeadMetadata() ([]byte, error) {
+	return nil, nil
+}
